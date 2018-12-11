@@ -46,7 +46,8 @@ public class JdbcSinkConfig extends AbstractConfig {
     NONE,
     KAFKA,
     RECORD_KEY,
-    RECORD_VALUE;
+    RECORD_VALUE,
+    RECORD_VALUE_IN_LIST;
   }
 
   public static final List<String> DEFAULT_KAFKA_PK_NAMES = Collections.unmodifiableList(
@@ -148,7 +149,10 @@ public class JdbcSinkConfig extends AbstractConfig {
       + " desired fields - for primitive key only a single field name must be configured.\n"
       + "``record_value``\n"
       + "    If empty, all fields from the value struct will be used, otherwise used to extract "
-      + "the desired fields.";
+      + "the desired fields.\n"
+      + "``record_value_in_list``\n"
+      + "    If empty, all fields from the value struct will be used, otherwise used to extract "
+      + "one or more desired fields but only those that are present actually in schema.\n";
   private static final String PK_FIELDS_DISPLAY = "Primary Key Fields";
 
   public static final String PK_MODE = "pk.mode";
@@ -163,6 +167,8 @@ public class JdbcSinkConfig extends AbstractConfig {
       + "``record_key``\n"
       + "    Field(s) from the record key are used, which may be a primitive or a struct.\n"
       + "``record_value``\n"
+      + "    Field(s) from the record value are used, which must be a struct."
+      + "``record_value_in_list``\n"
       + "    Field(s) from the record value are used, which must be a struct.";
   private static final String PK_MODE_DISPLAY = "Primary Key Mode";
 

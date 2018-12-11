@@ -101,6 +101,10 @@ public class FieldsMetadata {
       case RECORD_VALUE:
         extractRecordValuePk(tableName, configuredPkFields, valueSchema, allFields, keyFieldNames);
         break;
+      case RECORD_VALUE_IN_LIST:
+        extractRecordValueOfListedPk(tableName, configuredPkFields,
+                valueSchema, allFields, keyFieldNames);
+        break;
 
       default:
         throw new ConnectException("Unknown primary key mode: " + pkMode);
@@ -256,6 +260,48 @@ public class FieldsMetadata {
         }
       }
       keyFieldNames.addAll(configuredPkFields);
+    }
+    for (String fieldName : keyFieldNames) {
+      final Schema fieldSchema = valueSchema.field(fieldName).schema();
+      allFields.put(fieldName, new SinkRecordField(fieldSchema, fieldName, true));
+    }
+  }
+
+  private static void extractRecordValueOfListedPk(
+          final String tableName,
+          final List<String> configuredPkFields,
+          final Schema valueSchema,
+          final Map<String, SinkRecordField> allFields,
+          final Set<String> keyFieldNames
+  ) {
+    if (valueSchema == null) {
+      throw new ConnectException(String.format(
+              "PK mode for table '%s' is %s, but record value schema is missing",
+              tableName,
+              JdbcSinkConfig.PrimaryKeyMode.RECORD_VALUE_IN_LIST)
+      );
+    }
+    if (configuredPkFields.isEmpty()) {
+      for (Field keyField : valueSchema.fields()) {
+        keyFieldNames.add(keyField.name());
+      }
+    } else {
+      final Set<String> presentKeys = new LinkedHashSet<>();
+      for (String fieldName : configuredPkFields) {
+        if (valueSchema.field(fieldName) != null) {
+          presentKeys.add(fieldName);
+          break;
+        }
+      }
+      if (presentKeys.isEmpty()) {
+        throw new ConnectException(String.format(
+                "PK mode for table '%s' is %s with configured PK fields %s, but record value "
+                        + "schema does not contain any of them",
+                tableName, JdbcSinkConfig.PrimaryKeyMode.RECORD_VALUE_IN_LIST, configuredPkFields
+        ));
+      }
+
+      keyFieldNames.addAll(presentKeys);
     }
     for (String fieldName : keyFieldNames) {
       final Schema fieldSchema = valueSchema.field(fieldName).schema();

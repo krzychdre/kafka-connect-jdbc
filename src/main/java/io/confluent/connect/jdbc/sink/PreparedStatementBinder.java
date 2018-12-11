@@ -126,13 +126,14 @@ public class PreparedStatementBinder implements StatementBinder {
       }
       break;
 
-      case RECORD_VALUE: {
+      case RECORD_VALUE:
+      case RECORD_VALUE_IN_LIST: {
         for (String fieldName : fieldsMetadata.keyFieldNames) {
           final Field field = schemaPair.valueSchema.field(fieldName);
           bindField(statement, index++, field.schema(), ((Struct) record.value()).get(field));
         }
       }
-      break;
+        break;
 
       default:
         throw new ConnectException("Unknown primary key mode: " + pkMode);
