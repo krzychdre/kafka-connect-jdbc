@@ -14,16 +14,23 @@
 
 package io.confluent.connect.jdbc.util;
 
-public class BytesUtil {
+import java.time.DateTimeException;
+import java.time.ZoneId;
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
 
-  private static final char[] hexCode = "0123456789ABCDEF".toCharArray();
+public class TimeZoneValidator implements ConfigDef.Validator {
 
-  public static String toHex(byte[] data) {
-    StringBuilder r = new StringBuilder(data.length * 2);
-    for (byte b : data) {
-      r.append(hexCode[(b >> 4) & 0xF]);
-      r.append(hexCode[(b & 0xF)]);
+  public static final TimeZoneValidator INSTANCE = new TimeZoneValidator();
+
+  @Override
+  public void ensureValid(String name, Object value) {
+    if (value != null) {
+      try {
+        ZoneId.of(value.toString());
+      } catch (DateTimeException e) {
+        throw new ConfigException(name, value, "Invalid time zone identifier");
+      }
     }
-    return r.toString();
   }
 }

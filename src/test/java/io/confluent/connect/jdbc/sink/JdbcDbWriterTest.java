@@ -1,21 +1,22 @@
 /*
- * Copyright 2016 Confluent Inc.
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Confluent Community License; you may not use this file
+ * except in compliance with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 
 package io.confluent.connect.jdbc.sink;
 
+import io.confluent.connect.jdbc.sink.transformer.KafkaOffsetAppender;
+import io.confluent.connect.jdbc.sink.transformer.KafkaTimestampAppender;
+import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Date;
 import org.apache.kafka.connect.data.Decimal;
 import org.apache.kafka.connect.data.Field;
@@ -391,6 +392,49 @@ public class JdbcDbWriterTest {
             }
         )
     );
+  }
+
+
+  @Test
+  public void writeRecordExpectingTimestampAndOffsetAppended() throws SQLException {
+    String topic = "books";
+
+    Map<String, String> props = new HashMap<>();
+    props.put("connection.url", sqliteHelper.sqliteUri());
+    props.put("auto.create", "true");
+    props.put("auto.evolve", "true");
+    props.put("pk.mode", "record_key");
+    props.put("pk.fields", "id"); // assigned name for the primitive key
+    props.put("append.timestamp", "true");
+    props.put("append.offset", "true");
+
+    writer = newWriter(props);
+
+    Schema keySchema = Schema.INT64_SCHEMA;
+
+    Schema valueSchema1 = SchemaBuilder.struct()
+            .field("author", Schema.STRING_SCHEMA)
+            .field("title", Schema.STRING_SCHEMA)
+            .build();
+
+    Struct valueStruct1 = new Struct(valueSchema1)
+            .put("author", "Tom Robbins")
+            .put("title", "Villa Incognito");
+
+    writer.write(Collections.singleton(new SinkRecord(topic, 0, keySchema, 1L, valueSchema1,
+            valueStruct1, 0, 1546682314000L, TimestampType.CREATE_TIME)));
+
+    assertEquals(
+            1,
+            sqliteHelper.select("select * from books WHERE id='1'", new SqliteHelper.ResultSetReadCallback() {
+              @Override
+              public void read(ResultSet rs) throws SQLException {
+                assertEquals(1546682314000L, rs.getLong(KafkaTimestampAppender.KAFKA_TIMESTAMP));
+                assertEquals(0L, rs.getLong(KafkaOffsetAppender.KAFKA_OFFSET));
+              }
+            })
+    );
+    assertTrue(true);
   }
 
 }

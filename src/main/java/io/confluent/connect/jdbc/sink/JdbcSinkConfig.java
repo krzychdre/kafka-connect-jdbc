@@ -1,21 +1,20 @@
 /*
- * Copyright 2016 Confluent Inc.
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Confluent Community License; you may not use this file
+ * except in compliance with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
  */
 
 package io.confluent.connect.jdbc.sink;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -23,10 +22,12 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TimeZone;
 
 import io.confluent.connect.jdbc.source.JdbcSourceConnectorConfig;
 import io.confluent.connect.jdbc.util.DatabaseDialectRecommender;
 import io.confluent.connect.jdbc.util.StringUtils;
+import io.confluent.connect.jdbc.util.TimeZoneValidator;
 
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
@@ -200,6 +201,27 @@ public class JdbcSinkConfig extends AbstractConfig {
       + "specific dialect. All properly-packaged dialects in the JDBC connector plugin "
       + "can be used.";
 
+  public static final String DB_TIMEZONE_CONFIG = "db.timezone";
+  public static final String DB_TIMEZONE_DEFAULT = "UTC";
+  private static final String DB_TIMEZONE_CONFIG_DOC =
+      "Name of the JDBC timezone that should be used in the connector when "
+      + "inserting time-based values. Defaults to UTC.";
+  private static final String DB_TIMEZONE_CONFIG_DISPLAY = "DB Time Zone";
+
+  public static final String APPEND_KAFKA_TIMESTAMP = "append.timestamp";
+  public static final String APPEND_KAFKA_TIMESTAMP_DEFAULT = "false";
+  public static final String APPEND_KAFKA_TIMESTAMP_DOC =
+          "Should sink append to record message timestamp from Kafka."
+          + " Default is false.";
+  public static final String APPEND_KAFKA_TIMESTAMP_DISPLAY = "Append kafka message timestamp";
+
+  public static final String APPEND_KAFKA_OFFSET = "append.offset";
+  public static final String APPEND_KAFKA_OFFSET_DEFAULT = "false";
+  public static final String APPEND_KAFKA_OFFSET_DOC =
+          "Should sink append to record message offset from Kafka topic."
+                  + " Default is false.";
+  public static final String APPEND_KAFKA_OFFSET_DISPLAY = "Append kafka message offset";
+
   public static final ConfigDef CONFIG_DEF = new ConfigDef()
         // Connection
         .define(
@@ -327,6 +349,17 @@ public class JdbcSinkConfig extends AbstractConfig {
             4,
             ConfigDef.Width.LONG,
             FIELDS_WHITELIST_DISPLAY
+        ).define(
+          DB_TIMEZONE_CONFIG,
+          ConfigDef.Type.STRING,
+          DB_TIMEZONE_DEFAULT,
+          TimeZoneValidator.INSTANCE,
+          ConfigDef.Importance.MEDIUM,
+          DB_TIMEZONE_CONFIG_DOC,
+          DATAMAPPING_GROUP,
+          5,
+          ConfigDef.Width.MEDIUM,
+          DB_TIMEZONE_CONFIG_DISPLAY
         )
         // DDL
         .define(
@@ -348,6 +381,26 @@ public class JdbcSinkConfig extends AbstractConfig {
             2,
             ConfigDef.Width.SHORT,
             AUTO_EVOLVE_DISPLAY
+        )
+        .define(
+            APPEND_KAFKA_TIMESTAMP,
+            ConfigDef.Type.BOOLEAN,
+            APPEND_KAFKA_TIMESTAMP_DEFAULT,
+            ConfigDef.Importance.MEDIUM,
+            APPEND_KAFKA_TIMESTAMP_DOC, DDL_GROUP,
+            3,
+            ConfigDef.Width.SHORT,
+            APPEND_KAFKA_TIMESTAMP_DISPLAY
+        )
+        .define(
+            APPEND_KAFKA_OFFSET,
+            ConfigDef.Type.BOOLEAN,
+            APPEND_KAFKA_OFFSET_DEFAULT,
+            ConfigDef.Importance.MEDIUM,
+            APPEND_KAFKA_OFFSET_DOC, DDL_GROUP,
+            4,
+            ConfigDef.Width.SHORT,
+            APPEND_KAFKA_OFFSET_DISPLAY
         )
         // Retries
         .define(
@@ -390,6 +443,9 @@ public class JdbcSinkConfig extends AbstractConfig {
   public final List<String> pkFields;
   public final Set<String> fieldsWhitelist;
   public final String dialectName;
+  public final TimeZone timeZone;
+  public final boolean appendKafkaTimestamp;
+  public final boolean appendKafkaOffset;
 
   public JdbcSinkConfig(Map<?, ?> props) {
     super(CONFIG_DEF, props);
@@ -408,6 +464,10 @@ public class JdbcSinkConfig extends AbstractConfig {
     pkFields = getList(PK_FIELDS);
     dialectName = getString(DIALECT_NAME_CONFIG);
     fieldsWhitelist = new HashSet<>(getList(FIELDS_WHITELIST));
+    String dbTimeZone = getString(DB_TIMEZONE_CONFIG);
+    timeZone = TimeZone.getTimeZone(ZoneId.of(dbTimeZone));
+    appendKafkaTimestamp = getBoolean(APPEND_KAFKA_TIMESTAMP);
+    appendKafkaOffset = getBoolean(APPEND_KAFKA_OFFSET);
   }
 
   private String getPasswordValue(String key) {

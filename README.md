@@ -24,10 +24,22 @@ https://github.com/confluentinc/kafka-connect-jdbc/wiki/FAQ
 - Source Code: https://github.com/confluentinc/kafka-connect-jdbc
 - Issue Tracker: https://github.com/confluentinc/kafka-connect-jdbc/issues
 
+# Information
+
+For more information, check the documentation for the JDBC connector on the [confluent.io](https://docs.confluent.io/current/connect/kafka-connect-jdbc/index.html) website. Questions related to the connector can be asked on [Community Slack](https://launchpass.com/confluentcommunity) or the [Confluent Platform Google Group](https://groups.google.com/forum/#!topic/confluent-platform/).
+
+# Supplement.
+
+This version includes the following changes to the original:
+- delete event support added (removing tuples from the target database) [delete.enable option]
+- columns in the target database in the same order as in the original
+- possibility of using primary keys from the given list (the first from the list) [record_value_in_list option]
+- possibility of adding to the tuple field with a timestamp of the received message by Kafka [option append.timestamp]
+- possibility of adding to the tuple field with Kafka message offset [option append.offset]
 
 # License
 
-The project is licensed under the Apache 2 license.
+This project is licensed under the [Confluent Community License](LICENSE).
 
 
 [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bhttps%3A%2F%2Fgithub.com%2Fconfluentinc%2Fkafka-connect-jdbc.svg?type=large)](https://app.fossa.io/projects/git%2Bhttps%3A%2F%2Fgithub.com%2Fconfluentinc%2Fkafka-connect-jdbc?ref=badge_large)

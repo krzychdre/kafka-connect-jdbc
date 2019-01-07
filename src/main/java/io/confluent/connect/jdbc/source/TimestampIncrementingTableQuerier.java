@@ -1,21 +1,20 @@
-/**
- * Copyright 2015 Confluent Inc.
+/*
+ * Copyright 2018 Confluent Inc.
  *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
+ * Licensed under the Confluent Community License; you may not use this file
+ * except in compliance with the License.  You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * http://www.confluent.io/confluent-community-license
  *
  * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- **/
+ * distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+ * WARRANTIES OF ANY KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations under the License.
+ */
 
 package io.confluent.connect.jdbc.source;
 
+import java.util.TimeZone;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.source.SourceRecord;
@@ -70,12 +69,14 @@ public class TimestampIncrementingTableQuerier extends TableQuerier implements C
   private TimestampIncrementingCriteria criteria;
   private final Map<String, String> partition;
   private final String topic;
+  private final TimeZone timeZone;
 
   public TimestampIncrementingTableQuerier(DatabaseDialect dialect, QueryMode mode, String name,
                                            String topicPrefix,
                                            List<String> timestampColumnNames,
                                            String incrementingColumnName,
-                                           Map<String, Object> offsetMap, Long timestampDelay) {
+                                           Map<String, Object> offsetMap, Long timestampDelay,
+                                           TimeZone timeZone) {
     super(dialect, mode, name, topicPrefix);
     this.incrementingColumnName = incrementingColumnName;
     this.timestampColumnNames = timestampColumnNames != null
@@ -104,10 +105,42 @@ public class TimestampIncrementingTableQuerier extends TableQuerier implements C
       default:
         throw new ConnectException("Unexpected query mode: " + mode);
     }
+
+    this.timeZone = timeZone;
   }
 
   @Override
   protected void createPreparedStatement(Connection db) throws SQLException {
+    findDefaultAutoIncrementingColumn(db);
+
+    ColumnId incrementingColumn = null;
+    if (incrementingColumnName != null && !incrementingColumnName.isEmpty()) {
+      incrementingColumn = new ColumnId(tableId, incrementingColumnName);
+    }
+
+    ExpressionBuilder builder = dialect.expressionBuilder();
+    switch (mode) {
+      case TABLE:
+        builder.append("SELECT * FROM ");
+        builder.append(tableId);
+        break;
+      case QUERY:
+        builder.append(query);
+        break;
+      default:
+        throw new ConnectException("Unknown mode encountered when preparing query: " + mode);
+    }
+
+    // Append the criteria using the columns ...
+    criteria = dialect.criteriaFor(incrementingColumn, timestampColumns);
+    criteria.whereClause(builder);
+
+    String queryString = builder.toString();
+    log.debug("{} prepared SQL query: {}", this, queryString);
+    stmt = dialect.createPreparedStatement(db, queryString);
+  }
+
+  private void findDefaultAutoIncrementingColumn(Connection db) throws SQLException {
     // Default when unspecified uses an autoincrementing column
     if (incrementingColumnName != null && incrementingColumnName.isEmpty()) {
       // Find the first auto-incremented column ...
@@ -134,32 +167,6 @@ public class TimestampIncrementingTableQuerier extends TableQuerier implements C
         }
       }
     }
-
-    ColumnId incrementingColumn = null;
-    if (incrementingColumnName != null && !incrementingColumnName.isEmpty()) {
-      incrementingColumn = new ColumnId(tableId, incrementingColumnName);
-    }
-
-    ExpressionBuilder builder = dialect.expressionBuilder();
-    switch (mode) {
-      case TABLE:
-        builder.append("SELECT * FROM ");
-        builder.append(tableId);
-        break;
-      case QUERY:
-        builder.append(query);
-        break;
-      default:
-        throw new ConnectException("Unknown mode encountered when preparing query: " + mode);
-    }
-
-    // Append the criteria using the columns ...
-    criteria = dialect.criteriaFor(incrementingColumn, timestampColumns);
-    criteria.whereClause(builder);
-
-    String queryString = builder.toString();
-    log.info("{} prepared SQL query: {}", this, queryString);
-    stmt = dialect.createPreparedStatement(db, queryString);
   }
 
   @Override
@@ -193,7 +200,7 @@ public class TimestampIncrementingTableQuerier extends TableQuerier implements C
   public Timestamp endTimetampValue()  throws SQLException {
     final long currentDbTime = dialect.currentTimeOnDB(
         stmt.getConnection(),
-        DateTimeUtils.UTC_CALENDAR.get()
+        DateTimeUtils.getTimeZoneCalendar(timeZone)
     ).getTime();
     return new Timestamp(currentDbTime - timestampDelay);
   }
