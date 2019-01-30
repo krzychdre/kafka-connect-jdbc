@@ -26,7 +26,7 @@ public class KafkaTimestampAppender implements SinkRecordTransformer {
   @Override
   public SinkRecord transform(SinkRecord record) {
 
-    if (record.timestamp() == null) {
+    if (record.timestamp() == null || record.valueSchema() == null) {
       return record;
     }
 

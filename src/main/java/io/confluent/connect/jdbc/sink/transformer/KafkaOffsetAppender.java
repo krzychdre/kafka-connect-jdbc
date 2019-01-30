@@ -26,6 +26,10 @@ public class KafkaOffsetAppender implements SinkRecordTransformer {
   @Override
   public SinkRecord transform(SinkRecord record) {
 
+    if (record.valueSchema() == null) {
+      return record;
+    }
+
     Schema recordSchema = baseAppender.rewriteAllFields(record)
         .field(KAFKA_OFFSET, Schema.OPTIONAL_INT64_SCHEMA).build();
 
